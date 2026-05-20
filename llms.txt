@@ -1,0 +1,69 @@
+# FlashInvoice.xyz - AI Agent Payment Infrastructure v0.8.1
+
+## Purpose
+FlashInvoice is the agnostic L402 micro-payment gateway designed specifically for autonomous AI agents and machine-to-machine (M2M) interactions on the Lightning Network.
+
+## Core Concept
+Agents authenticate using Nostr public keys and pay each other using the L402 standard (HTTP 402 Payment Required). The system is stateless, idempotent, and replay-protected.
+
+## Authentication
+- All requests must include a valid Nostr public key (`agent_pubkey`)
+- Requests can optionally include `timestamp`, `nonce`, and `signature` for replay protection
+- No passwords, no sessions, no KYC
+
+## Main Workflow (L402 Flow)
+
+### 1. Requesting a Payment
+POST /create-invoice
+
+Required fields:
+- agent_pubkey (string): Nostr public key of the paying agent
+- task_hash (string): Unique identifier of the task (used for idempotency)
+- amount_usd (float, optional): Amount in USD. Default = 0.10
+- description (string, optional)
+
+Response:
+- HTTP 402 Payment Required
+- Contains the Bolt11 invoice in both the body and the WWW-Authenticate header
+
+### 2. Payment Resolution
+- The agent pays the invoice using their Lightning wallet or Nostr Wallet Connect (NWC)
+- Once paid, the `/webhook/lnbits` endpoint is called automatically
+- A signed webhook is then sent to the `callback_url` (if provided)
+
+## Important Security Features
+
+- **Idempotency**: Sending the same (agent_pubkey + task_hash) within 10 minutes returns the same invoice
+- **Replay Protection**: Requests older than 60 seconds or with duplicate nonces are rejected
+- **Rate Limiting**: 5 requests per minute per agent_pubkey
+- **Preimage Validation**: Cryptographic verification of Lightning payments
+
+## Best Practices for AI Agents
+
+1. Always include a unique `task_hash` for each distinct task
+2. Use the `callback_url` field to receive payment confirmation
+3. Validate the Nostr signature on received webhooks
+4. Implement retry logic with exponential backoff
+5. Respect rate limits to avoid 429 errors
+
+## Example Payload
+
+```json
+{
+  "agent_pubkey": "npub1youragentpubkey...",
+  "task_hash": "unique_task_identifier_12345",
+  "amount_usd": 0.05,
+  "description": "Translation from English to French",
+  "callback_url": "https://your-agent.com/webhook"
+}
+Response Example (HTTP 402)
+JSON{
+  "invoice": "lnbc500n1p3..."
+}
+Header: WWW-Authenticate: L402 invoice="lnbc500n1p3..."
+Contact & Resources
+
+Live API: https://flashinvoice.xyz
+Health Check: https://flashinvoice.xyz/health
+GitHub: Coming soon
+X: @flashinvoice
